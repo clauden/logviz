@@ -6,6 +6,10 @@ require 'getoptlong'
 require 'json'
 require 'tokenize'
 
+def nothing; end
+
+
+
 include Tokenize
 include Math        # convenience for expressions...
 
@@ -21,6 +25,8 @@ rulesfile = nil
 x_axis = {}
 y_axis = {}
 
+datafile = nil
+debug = nil
 
 #
 # data extraction directives
@@ -44,28 +50,37 @@ regexp_rx = /\s*regexp\s+(\w+)\s+(.+)/i
 #
 
 # "XAXIS some-tag label 
-x_rx = /\s*xaxis\s+(.*)\s+(.*)/
+x_rx = /\s*xaxis\s+(\w+)\s+(.*)/
 
 # "YAXIS some-tag label
-y_rx = /\s*yaxis\s+(.*)\s+(.*)/
+y_rx = /\s*yaxis\s+(\w+)\s+(.*)/
 
 
-
-def usage
-  puts "--file <rulesfile> [--columns | --json]"
+def looks_like_date(x)
+  rv = nil
+  begin
+    rv = DateTime.parse(x)
+  rescue
+    nil
+  end
+  rv
 end
-
-
 
 #
 # main begins
 #
 
+def usage
+  puts "--file <rulesfile> [--columns | --json]"
+end
+
 opts = GetoptLong.new(
       [ '--help', '-h', GetoptLong::NO_ARGUMENT ],
       [ '--file', '-f', GetoptLong::REQUIRED_ARGUMENT ],
       [ '--columns', '-c', GetoptLong::NO_ARGUMENT ],
-      [ '--json', '-j', GetoptLong::NO_ARGUMENT ]
+      [ '--json', '-j', GetoptLong::NO_ARGUMENT ],
+      [ '--datafile', '-d', GetoptLong::REQUIRED_ARGUMENT ],
+      [ '--DEBUG', '-D', GetoptLong::NO_ARGUMENT ]
     )
 
 opts.each do |opt, arg|
@@ -74,23 +89,33 @@ opts.each do |opt, arg|
       usage
     when '--file'
       rulesfile = arg
+    when '--datafile'
+      datafile = arg
     when '--json'
       method = :json
     when '--columns'
       method = :columns
+    when '--DEBUG'
+      debug = true
   end
 end
 
+alias debugger nothing unless debug
+
+# read rules from here
 if not rulesfile
   usage
   exit 1
 end
 
+# read data rows from here
+infile = datafile || nil
 
 #
 # load the rules 
 #
 File.open(rulesfile) do |f|
+      debugger
   while ((line = f.gets))
     if ((m = line.match(column_rx)))
       printf("LABEL %s %d\n", m.captures[0], m.captures[1].to_i)
@@ -112,6 +137,25 @@ File.open(rulesfile) do |f|
       y_axis[m.captures[0]] = m.captures[1]
     end
   end
+end
+
+
+#
+# basic validation
+#
+
+# need an x axis
+if x_axis.empty?
+  puts "Need an x axis"
+  usage
+  exit 3
+end
+
+# need at least one y axis
+if y_axis.empty?
+  puts "Need at least one y axis"
+  usage
+  exit 3
 end
 
 
@@ -146,21 +190,25 @@ end
 output = []
 
 if method == :columns
-  while((line = STDIN.gets))
+  File.open(infile) do |f|
+      while((line = f.gets)) 
 
-    values = {}
+      values = {}
 
-    # assign tags to numeric columns
-    s = line.split
-    labels.keys.each do |l|
-      i = labels[l]                   # the column number
-      if s[i]
-        if s[i].to_f.to_s == s[i]     # keep numeric types correct
-          values[l] = s[i].to_f
-        elsif s[i].to_i.to_s == s[i]
-          values[l] = s[i].to_i
-        else
-          values[l] = s[i] if s[i]    # use the value if column exists
+      # assign tags to numeric columns
+      s = line.split
+      labels.keys.each do |l|
+        i = labels[l]                   # the column number
+        if s[i]
+          if s[i].to_f.to_s == s[i]     # keep numeric types correct
+            values[l] = s[i].to_f
+          elsif s[i].to_i.to_s == s[i]
+            values[l] = s[i].to_i
+          elsif DateTime.parse(s[i])
+            values[l] = DateTime.parse(s[i])
+          else
+            values[l] = s[i] if s[i]    # use the value if column exists
+          end
         end
       end
     end
@@ -168,7 +216,6 @@ if method == :columns
     result = {}
 
     # resolve expressions
-    debugger
     exprs.each do |k, e|
       x = eval e rescue "undefined"
       printf("%s -> %s\n", k, x)
@@ -177,12 +224,12 @@ if method == :columns
     
     # done
     puts result.merge(values).inspect
-    output << result.merge(values).inspect
+    output << result.merge(values)
   end
 
 elsif method == :json
 
-    toplevel_object = JSON.parse(STDIN.readlines.join)
+    toplevel_object = infile ? File.open(infile) { |f| JSON.parse(f.readlines.join) } : JSON.parse(STDIN.readlines.join) 
     puts toplevel_object.inspect
 
     # assume toplevel object is an array of entries
@@ -199,7 +246,11 @@ elsif method == :json
       json.each do |label, expr|
         x = eval(expr)
         puts "json #{label} -> #{x}"
-        values[label] = x
+        if looks_like_date(x) 
+          values[label] = DateTime.parse(x)
+        else
+          values[label] = x
+        end
       end
 
       result = {}
@@ -214,18 +265,78 @@ elsif method == :json
 
     # done
     puts result.merge(values).inspect
-    output << result.merge(values).inspect
+    output << result.merge(values)
   end
 
 end 
   
 # now output contains a hash for each record to be plotted
   
-# gnuplot preamble
 
-# x axis description (assume time for now)
-gnuplot "set xdata time"
-puts "x_axis"
-# y axes
-y_axes.each_key do |k|
+#
+# calculate x-axis params
+#
+
+debugger
+# which element is x-axis (time) ?
+x_elt = x_axis.keys[0]
+
+# get min/max time value
+xvals = output.collect { |e| e[x_elt] }
+xvals.sort!
+# xmin = DateTime.parse(xvals.first)
+# xmax = DateTime.parse(xvals.last)
+xmin = xvals.first
+xmax = xvals.last
+puts "x: #{xmin.to_s} - #{xmax.to_s}"
+
+# pick a format based on min-max interval
+d = (xmax - xmin).to_i
+if d < 3
+  # < 3 days, use hours
+  xaxis_format = "%m/%d %H:%M"
+elsif d < 90
+  # < 3 months, use days
+  xaxis_format = "%m/%d"
+else
+  xaxis_format = "%m/%d/%Y"
 end
+
+# compute min/max range for each y axis (add 5 % buffer?)
+
+puts "GNUPLOT"
+puts "set xdata time"
+puts "set timefmt \"%Y-%m-%d+%H:%M:%S\"" 
+puts "set format x \"#{xaxis_format}\""
+puts "set xrange [\"#{xmin.strftime("%Y-%m-%d+%H:%M:%S")}\":\"#{xmax.strftime("%Y-%m-%d+%H:%M:%S")}\"]"
+puts "plot  \\"
+y = 2
+lasty = y_axis.length + 1 
+while y <= lasty do
+  s = y < lasty ? "," : ""
+  puts "\"out\" using 1:#{y} with lines#{s}  \\"  
+  y += 1
+end
+puts
+puts "END GNUPLOT"
+
+
+# write out gnuplot source data file (date in appropriate format!)
+
+# x_elt is assumed to be date
+output.sort! do |e1, e2|
+  e1[x_elt] <=> e2[x_elt]
+end
+
+puts "DATA"
+output.each do |e|
+  s = e[x_elt].strftime("%Y-%m-%d+%H:%M:%S")      # standard time format
+  y_axis.keys.each do |y|
+    s << "\t#{e[y].to_s}"
+  end
+  puts s
+end 
+puts "END DATA"
+
+# write out gnuplot command file
+puts 
