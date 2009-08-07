@@ -13,7 +13,9 @@ def nothing; end
 include Tokenize
 include Math        # convenience for expressions...
 
-method = :lines
+method = :columns
+column_delimiter = ' '
+timeseries = nil
 
 labels = {}
 raw_exprs = {}
@@ -32,17 +34,26 @@ debug = nil
 # data extraction directives
 #
 
+# # anything
+comment_rx = /\s*\#/
+
+# "DELIMITER some-regex-or-character"
+delimiter_rx = /\s*DELIMITER\s+(.*)/i
+
 # "LABEL some-tag COLUMN some-column"
-column_rx = /\s*label\s+(\w+)\s+column\s+(\d+)/i
+column_rx = /\s*LABEL\s+(\w+)\s+COLUMN\s+(\d+)/i
 
 # "LABEL some-tag EXPR some-expr"
-expr_rx = /\s*label\s+(\w+)\s+expr\s+(.+)/i
+expr_rx = /\s*LABEL\s+(\w+)\s+EXPR\s+(.+)/i
 
 # "LABEL some-tag JSON json-expr"
-json_rx = /\s*label\s+(\w+)\s+json\s+(.+)/i
+json_rx = /\s*LABEL\s+(\w+)\s+JSON\s+(.+)/i
 
 # "REGEXP some-tag some-regexp"
-regexp_rx = /\s*regexp\s+(\w+)\s+(.+)/i 
+regexp_rx = /\s*REGEXP\s+(\w+)\s+(.+)/i 
+
+# "TIMESERIES true-or-false" 
+timeseries_rx = /\s*TIMESERIES\s+(\w+)/i 
 
 
 #
@@ -117,7 +128,9 @@ infile = datafile || nil
 File.open(rulesfile) do |f|
       debugger
   while ((line = f.gets))
-    if ((m = line.match(column_rx)))
+    if line.match(comment_rx)
+      next
+    elsif ((m = line.match(column_rx)))
       printf("LABEL %s %d\n", m.captures[0], m.captures[1].to_i)
       labels[m.captures[0]] = m.captures[1].to_i
     elsif ((m = line.match(expr_rx))) 
@@ -132,6 +145,12 @@ File.open(rulesfile) do |f|
     elsif ((m = line.match(x_rx))) 
       printf("X AXIS %s %s\n", m.captures[0], m.captures[1]) 
       x_axis[m.captures[0]] = m.captures[1]
+    elsif ((m = line.match(delimiter_rx))) 
+      printf("DELIMITER %s\n", m.captures[0])
+      column_delimiter = Regexp.new(m.captures[0])
+    elsif ((m = line.match(timeseries_rx))) 
+      printf("TIMESERIES %s\n", m.captures[0] =~ /true/i)
+      timeseries = m.captures[0] =~ /true/i
     elsif ((m = line.match(y_rx))) 
       printf("Y AXIS %s %s\n", m.captures[0], m.captures[1])
       y_axis[m.captures[0]] = m.captures[1]
@@ -190,26 +209,24 @@ end
 output = []
 
 if method == :columns
-  File.open(infile) do |f|
-      while((line = f.gets)) 
+  values = {}
 
-      values = {}
-
-      # assign tags to numeric columns
-      s = line.split
-      labels.keys.each do |l|
-        i = labels[l]                   # the column number
-        if s[i]
-          if s[i].to_f.to_s == s[i]     # keep numeric types correct
-            values[l] = s[i].to_f
-          elsif s[i].to_i.to_s == s[i]
-            values[l] = s[i].to_i
-          elsif DateTime.parse(s[i])
-            values[l] = DateTime.parse(s[i])
-          else
-            values[l] = s[i] if s[i]    # use the value if column exists
-          end
-        end
+  toplevel_object = infile ? File.open(infile) { |f| f.readlines } : STDIN.readlines
+  toplevel_object.each do |line| 
+    # assign tags to numeric columns
+    cols = line.split(column_delimiter)
+    labels.keys.each do |l| 
+      i = labels[l]           # the column number
+      c = cols[i]             # value at that column
+      next if not c
+      if c.to_f.to_s == c     # keep numeric types correct
+        values[l] = c.to_f
+      elsif c.to_i.to_s == c
+        values[l] = c.to_i
+      elsif looks_like_date(c) 
+        values[l] = DateTime.parse(c)
+      else
+        values[l] = c 
       end
     end
 
@@ -221,7 +238,7 @@ if method == :columns
       printf("%s -> %s\n", k, x)
       result[k] = x
     end
-    
+  
     # done
     puts result.merge(values).inspect
     output << result.merge(values)
@@ -280,6 +297,7 @@ end
 debugger
 # which element is x-axis (time) ?
 x_elt = x_axis.keys[0]
+puts "using x elt #{x_elt}"
 
 # get min/max time value
 xvals = output.collect { |e| e[x_elt] }
@@ -290,16 +308,18 @@ xmin = xvals.first
 xmax = xvals.last
 puts "x: #{xmin.to_s} - #{xmax.to_s}"
 
-# pick a format based on min-max interval
-d = (xmax - xmin).to_i
-if d < 3
-  # < 3 days, use hours
-  xaxis_format = "%m/%d %H:%M"
-elsif d < 90
-  # < 3 months, use days
-  xaxis_format = "%m/%d"
-else
-  xaxis_format = "%m/%d/%Y"
+if timeseries
+  # pick a format based on min-max interval
+  d = (xmax - xmin).to_i
+  if d < 3
+    # < 3 days, use hours
+    xaxis_format = "%m/%d %H:%M"
+  elsif d < 90
+    # < 3 months, use days
+    xaxis_format = "%m/%d"
+  else
+    xaxis_format = "%m/%d/%Y"
+  end
 end
 
 # compute min/max range for each y axis (add 5 % buffer?)
@@ -309,10 +329,12 @@ y_axis_data = y_axis.keys.inject([]) { |r,i| r << y_axis[i]; r }
 
 gnuplot_cmd_file = "./gnuplot.cmds"
 File.open(gnuplot_cmd_file, "w") do |f|
-  f.puts "set xdata time"
-  f.puts "set timefmt \"%Y-%m-%d+%H:%M:%S\"" 
-  f.puts "set format x \"#{xaxis_format}\""
-  f.puts "set xrange [\"#{xmin.strftime("%Y-%m-%d+%H:%M:%S")}\":\"#{xmax.strftime("%Y-%m-%d+%H:%M:%S")}\"]"
+  if timeseries
+    f.puts "set xdata time"
+    f.puts "set timefmt \"%Y-%m-%d+%H:%M:%S\"" 
+    f.puts "set format x \"#{xaxis_format}\""
+    f.puts "set xrange [\"#{xmin.strftime("%Y-%m-%d+%H:%M:%S")}\":\"#{xmax.strftime("%Y-%m-%d+%H:%M:%S")}\"]"
+  end
   f.puts "plot  \\"
   lasty = y_axis_data.length - 1
   y_axis_data.each_index do |y| 
@@ -324,15 +346,20 @@ end
 
 # write out gnuplot source data file (date in appropriate format!)
 
-# x_elt is assumed to be date
+# x_elt is assumed to be date (but this sort should work regardless?)
 output.sort! do |e1, e2|
   e1[x_elt] <=> e2[x_elt]
 end
 
+debugger
 output_data_file = "./out"
 File.open(output_data_file, "w") do |f|
   output.each do |e|
-    s = e[x_elt].strftime("%Y-%m-%d+%H:%M:%S")      # standard time format
+    if timeseries
+      s = e[x_elt].strftime("%Y-%m-%d+%H:%M:%S")      # standard time format
+    else
+      s = e[x_elt].to_s
+    end
     y_axis.keys.each do |y|
       s << "\t#{e[y].to_s}"
     end
