@@ -304,22 +304,23 @@ end
 
 # compute min/max range for each y axis (add 5 % buffer?)
 
-puts "GNUPLOT"
-puts "set xdata time"
-puts "set timefmt \"%Y-%m-%d+%H:%M:%S\"" 
-puts "set format x \"#{xaxis_format}\""
-puts "set xrange [\"#{xmin.strftime("%Y-%m-%d+%H:%M:%S")}\":\"#{xmax.strftime("%Y-%m-%d+%H:%M:%S")}\"]"
-puts "plot  \\"
-y = 2
-lasty = y_axis.length + 1 
-while y <= lasty do
-  s = y < lasty ? "," : ""
-  puts "\"out\" using 1:#{y} with lines#{s}  \\"  
-  y += 1
-end
-puts
-puts "END GNUPLOT"
+# set up column index, title for each y axis
+y_axis_data = y_axis.keys.inject([]) { |r,i| r << y_axis[i]; r }
 
+gnuplot_cmd_file = "./gnuplot.cmds"
+File.open(gnuplot_cmd_file, "w") do |f|
+  f.puts "set xdata time"
+  f.puts "set timefmt \"%Y-%m-%d+%H:%M:%S\"" 
+  f.puts "set format x \"#{xaxis_format}\""
+  f.puts "set xrange [\"#{xmin.strftime("%Y-%m-%d+%H:%M:%S")}\":\"#{xmax.strftime("%Y-%m-%d+%H:%M:%S")}\"]"
+  f.puts "plot  \\"
+  lasty = y_axis_data.length - 1
+  y_axis_data.each_index do |y| 
+    s = y < lasty ? "," : ""
+    f.puts "\"out\" using 1:#{y + 2} with lines title #{y_axis_data[y]} #{s}  \\"  
+  end
+  f.puts
+end
 
 # write out gnuplot source data file (date in appropriate format!)
 
@@ -328,15 +329,13 @@ output.sort! do |e1, e2|
   e1[x_elt] <=> e2[x_elt]
 end
 
-puts "DATA"
-output.each do |e|
-  s = e[x_elt].strftime("%Y-%m-%d+%H:%M:%S")      # standard time format
-  y_axis.keys.each do |y|
-    s << "\t#{e[y].to_s}"
-  end
-  puts s
-end 
-puts "END DATA"
-
-# write out gnuplot command file
-puts 
+output_data_file = "./out"
+File.open(output_data_file, "w") do |f|
+  output.each do |e|
+    s = e[x_elt].strftime("%Y-%m-%d+%H:%M:%S")      # standard time format
+    y_axis.keys.each do |y|
+      s << "\t#{e[y].to_s}"
+    end
+    f.puts s
+  end 
+end
