@@ -18,3 +18,28 @@ The specification dsl supports definition of:
     - variable
   . y axes (multiple, left/right)
     
+Syntax:
+
+Define global column delimiter
+  DELIMITER some-regex-or-character
+Define a regular expression
+  REGEXP some-tag some-regexp
+
+Assign a label to a column
+  LABEL some-tag COLUMN some-column
+Assign a label to an expression 
+  LABEL some-tag EXPR some-expr
+Assign a label to a JSON expression against current row
+  LABEL some-tag JSON json-expr
+Assign a label to a regular expression capture
+  LABEL some-tag REGEXP regexp-tag match-index 
+
+Set timeseries mode
+  TIMESERIES true-or-false
+
+Set x axis 
+  XAXIS some-tag label 
+Set y axis
+  YAXIS some-tag label
+
+

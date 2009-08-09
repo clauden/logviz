@@ -21,6 +21,7 @@ labels = {}
 raw_exprs = {}
 exprs = {}
 json = {}
+regexps_defined = {}
 regexps = {}
 rulesfile = nil
 
@@ -34,11 +35,26 @@ debug = nil
 # data extraction directives
 #
 
-# # anything
+# ignore
 comment_rx = /\s*\#/
+
+#
+# global settings
+#
 
 # "DELIMITER some-regex-or-character"
 delimiter_rx = /\s*DELIMITER\s+(.*)/i
+
+# "TIMESERIES true-or-false" 
+timeseries_rx = /\s*TIMESERIES\s+(\w+)/i 
+
+# "REGEXP some-tag some-regexp"
+regexp_define_rx = /\s*REGEXP\s+(\w+)\s*=\s*(.+)/i 
+
+
+#
+# labels
+#
 
 # "LABEL some-tag COLUMN some-column"
 column_rx = /\s*LABEL\s+(\w+)\s+COLUMN\s+(\d+)/i
@@ -49,11 +65,9 @@ expr_rx = /\s*LABEL\s+(\w+)\s+EXPR\s+(.+)/i
 # "LABEL some-tag JSON json-expr"
 json_rx = /\s*LABEL\s+(\w+)\s+JSON\s+(.+)/i
 
-# "REGEXP some-tag some-regexp"
-regexp_rx = /\s*REGEXP\s+(\w+)\s+(.+)/i 
-
-# "TIMESERIES true-or-false" 
-timeseries_rx = /\s*TIMESERIES\s+(\w+)/i 
+# this label applies to the match-indexth capture or regexp-tag
+# "LABEL some-tag REGEXP regexp-tag match-index 
+regexp_rx = /\s*LABEL\s+(\w+)\s+REGEXP\s+(\w+)\s+(\d+)/i
 
 
 #
@@ -148,9 +162,12 @@ File.open(rulesfile) do |f|
     elsif ((m = line.match(json_rx))) 
       printf("JSON %s %s\n", m.captures[0], m.captures[1])
       json[m.captures[0]] = m.captures[1]
+    elsif ((m = line.match(regexp_define_rx))) 
+      printf("REGEXP DEFINED %s %s\n", m.captures[0], m.captures[1])
+      regexps_defined[m.captures[0]] = Regexp.new(m.captures[1])
     elsif ((m = line.match(regexp_rx))) 
-      printf("REGEXP %s %s\n", m.captures[0], m.captures[1])
-      regexps[m.captures[0]] = Regexp.new(m.captures[1])
+      printf("REGEXP TAG %s %s %d\n", m.captures[0], m.captures[1], m.captures[2].to_i)
+      regexps[m.captures[0]] = [m.captures[1], m.captures[2].to_i]
     elsif ((m = line.match(x_rx))) 
       printf("X AXIS %s %s\n", m.captures[0], m.captures[1]) 
       x_axis[m.captures[0]] = m.captures[1]
@@ -167,6 +184,7 @@ File.open(rulesfile) do |f|
   end
 end
 
+debugger
 
 #
 # basic validation
@@ -241,7 +259,15 @@ if method == :columns
     end
 
     # for more elaborate cases, assign tags to regexp captures
-    
+
+    # apply each regexp to the input
+    rxs = regexps_defined.keys.inject({}) { |r,i| r[i] = line.match(regexps_defined[i]); r }
+
+    # set each labeled value
+    regexps.keys.each do |r|
+      m = rxs[regexps[r][0]]
+      values[r] = m.captures[regexps[r][1]]
+    end
     
     result = {}
 
