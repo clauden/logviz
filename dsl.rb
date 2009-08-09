@@ -123,6 +123,15 @@ end
 infile = datafile || nil
 
 #
+# interesting approach to parsing...?
+# >> rxs
+# => [/foo$/, /bar\w+/]
+# >> x
+# => ["foo ", "this foo", "barba", "bar", "bar aba"]
+# >> rxs.each { |rx| x.select { |item| if item =~ rx; puts "#{item}, #{rx}"; break; end; } }
+#
+
+#
 # load the rules 
 #
 File.open(rulesfile) do |f|
@@ -213,7 +222,8 @@ if method == :columns
 
   toplevel_object = infile ? File.open(infile) { |f| f.readlines } : STDIN.readlines
   toplevel_object.each do |line| 
-    # assign tags to numeric columns
+
+    # for simple cases, assign tags to numeric columns
     cols = line.split(column_delimiter)
     labels.keys.each do |l| 
       i = labels[l]           # the column number
@@ -230,6 +240,9 @@ if method == :columns
       end
     end
 
+    # for more elaborate cases, assign tags to regexp captures
+    
+    
     result = {}
 
     # resolve expressions
@@ -366,3 +379,5 @@ File.open(output_data_file, "w") do |f|
     f.puts s
   end 
 end
+
+
