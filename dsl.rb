@@ -24,12 +24,15 @@ json = {}
 regexps_defined = {}
 regexps = {}
 rulesfile = nil
+title = nil
 
 x_axis = {}
 y_axis = {}
 
 datafile = nil
 debug = nil
+gnuplot_cmd_file = nil
+
 
 #
 # data extraction directives
@@ -50,6 +53,9 @@ timeseries_rx = /\s*TIMESERIES\s+(\w+)/i
 
 # "REGEXP some-tag some-regexp"
 regexp_define_rx = /\s*REGEXP\s+(\w+)\s*=\s*(.+)/i 
+
+# "TITLE the-title"
+title_rx = /\s*TITLE\s+(.+)/i 
 
 
 #
@@ -91,6 +97,12 @@ def looks_like_date(x)
   rv
 end
 
+def ensure_quoted_string(s)
+  s = "\"#{s}\"" if not s.match /^('|").*('|")$/
+  s
+end
+
+
 #
 # main begins
 #
@@ -130,6 +142,7 @@ opts = GetoptLong.new(
       [ '--columns', '-c', GetoptLong::NO_ARGUMENT ],
       [ '--json', '-j', GetoptLong::NO_ARGUMENT ],
       [ '--datafile', '-d', GetoptLong::REQUIRED_ARGUMENT ],
+      [ '--gnuplot', '-g', GetoptLong::REQUIRED_ARGUMENT ],
       [ '--DEBUG', '-D', GetoptLong::NO_ARGUMENT ]
     )
 
@@ -140,6 +153,8 @@ opts.each do |opt, arg|
       exit 0
     when '--file'
       rulesfile = arg
+    when '--gnuplot'
+      gnuplot_cmd_file = arg
     when '--datafile'
       datafile = arg
     when '--json'
@@ -175,8 +190,8 @@ infile = datafile || nil
 # load the rules 
 #
 File.open(rulesfile) do |f|
-      debugger
   while ((line = f.gets))
+      debugger
     if line.match(comment_rx)
       next
     elsif ((m = line.match(column_rx)))
@@ -196,7 +211,7 @@ File.open(rulesfile) do |f|
       regexps[m.captures[0]] = [m.captures[1], m.captures[2].to_i]
     elsif ((m = line.match(x_rx))) 
       printf("X AXIS %s %s\n", m.captures[0], m.captures[1]) 
-      x_axis[m.captures[0]] = m.captures[1]
+      x_axis[m.captures[0]] = ensure_quoted_string(m.captures[1])
     elsif ((m = line.match(delimiter_rx))) 
       printf("DELIMITER %s\n", m.captures[0])
       column_delimiter = Regexp.new(m.captures[0])
@@ -205,7 +220,10 @@ File.open(rulesfile) do |f|
       timeseries = m.captures[0] =~ /true/i
     elsif ((m = line.match(y_rx))) 
       printf("Y AXIS %s %s\n", m.captures[0], m.captures[1])
-      y_axis[m.captures[0]] = m.captures[1]
+      y_axis[m.captures[0]] = ensure_quoted_string(m.captures[1])
+    elsif ((m = line.match(title_rx))) 
+      printf("TITLE %s\n", m.captures[0])
+      title = ensure_quoted_string(m.captures[0])
     end
   end
 end
@@ -392,8 +410,10 @@ end
 # set up column index, title for each y axis
 y_axis_data = y_axis.keys.inject([]) { |r,i| r << y_axis[i]; r }
 
-gnuplot_cmd_file = "./gnuplot.cmds"
+gnuplot_cmd_file = "./gnuplot.cmds" if not gnuplot_cmd_file
+
 File.open(gnuplot_cmd_file, "w") do |f|
+  f.puts "set title #{title}" if title
   if timeseries
     f.puts "set xdata time"
     f.puts "set timefmt \"%Y-%m-%d+%H:%M:%S\"" 
