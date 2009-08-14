@@ -1,14 +1,14 @@
-#
+
 # given a set of columns, assign tag to each
 #
 require 'rubygems'; require 'ruby-debug'
 require 'getoptlong'
 require 'json'
+
+$:.unshift(File.dirname(__FILE__))
 require 'tokenize'
 
 def nothing; end
-
-
 
 include Tokenize
 include Math        # convenience for expressions...
@@ -96,7 +96,32 @@ end
 #
 
 def usage
-  puts "--file <rulesfile> [--columns | --json]"
+  puts <<-EOF
+Generate gnuplot source for an arbitary row-oriented data set.
+Usage:
+    #{$0} --file <rules-file> --datafile <data-file> [--columns | --json] --gnuplot <cmd-file> --output <output-file> --DEBUG
+  
+    In the absence of --datafile, STDIN is read.
+    In the absence of --gnuplot, the command file is written to 'gnuplot.cmd' in the local directory.
+    In the absence of --output, the output data file is written to 'out' in the local directory.
+
+    Column input may be processed either with a fixed delimiter expression or using regexps.
+    JSON input is assumed to be an array containing one hash per row. 
+
+    X-axis may be timeseries (date/time format calculated automatically) or just data.
+
+    Rules-file format:
+      TIMESERIES [ "true" | "false" ]
+      DELIMITER [ <regexp> | <character> ]
+      REGEXP <tag> <regexp>
+
+      LABEL <tag> COLUMN <col-num>    # Assign tag to a column in the input data
+      LABEL <tag> EXPR <expr>         # Assign tag to an arbitrary expression (can contain defined tags)
+      LABEL <tag> JSON <json-expr>    # Assign tag to a JSON expression against current "row"
+
+      XAXIS <tag> <label>             # Set x-axis data set to tag (exactly one required)
+      YAXIS <tag> <label>             # Set y-axis data set to tag (one or more)
+  EOF
 end
 
 opts = GetoptLong.new(
@@ -112,6 +137,7 @@ opts.each do |opt, arg|
   case opt
     when '--help'
       usage
+      exit 0
     when '--file'
       rulesfile = arg
     when '--datafile'
