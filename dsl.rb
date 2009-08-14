@@ -28,6 +28,7 @@ title = nil
 
 x_axis = {}
 y_axis = {}
+y2_axis = {}
 
 datafile = nil
 debug = nil
@@ -86,6 +87,8 @@ x_rx = /\s*xaxis\s+(\w+)\s+(.*)/
 # "YAXIS some-tag label
 y_rx = /\s*yaxis\s+(\w+)\s+(.*)/
 
+# "Y2AXIS some-tag label
+y2_rx = /\s*y2axis\s+(\w+)\s+(.*)/
 
 def looks_like_date(x)
   rv = nil
@@ -220,6 +223,9 @@ File.open(rulesfile) do |f|
     elsif ((m = line.match(y_rx))) 
       printf("Y AXIS %s %s\n", m.captures[0], m.captures[1])
       y_axis[m.captures[0]] = ensure_quoted_string(m.captures[1])
+    elsif ((m = line.match(y2_rx))) 
+      printf("Y2 AXIS %s %s\n", m.captures[0], m.captures[1])
+      y2_axis[m.captures[0]] = ensure_quoted_string(m.captures[1])
     elsif ((m = line.match(title_rx))) 
       printf("TITLE %s\n", m.captures[0])
       title = ensure_quoted_string(m.captures[0])
@@ -241,7 +247,7 @@ if x_axis.empty?
 end
 
 # need at least one y axis
-if y_axis.empty?
+if y_axis.empty? and y2_axis.empty?
   puts "Need at least one y axis"
   usage
   exit 3
@@ -407,7 +413,8 @@ end
 # compute min/max range for each y axis (add 5 % buffer?)
 
 # set up column index, title for each y axis
-y_axis_data = y_axis.keys.inject([]) { |r,i| r << y_axis[i]; r }
+y_axis_data = y_axis.keys.inject([]) { |r,i| r << y_axis[i]; r } if not y_axis.empty?
+y2_axis_data = y2_axis.keys.inject([]) { |r,i| r << y2_axis[i]; r } if not y2_axis.empty?
 
 gnuplot_cmd_file = "./gnuplot.cmds" if not gnuplot_cmd_file
 
@@ -420,12 +427,31 @@ File.open(gnuplot_cmd_file, "w") do |f|
     f.puts "set xrange [\"#{xmin.strftime("%Y-%m-%d+%H:%M:%S")}\":\"#{xmax.strftime("%Y-%m-%d+%H:%M:%S")}\"]"
   end
 debugger
-  f.puts "set ylabel \"#{y_axis_data.inject([]) {|r,i| r << i.gsub(/'|"/, "") if (i and i.length > 0); r }.join(" / ")}\""
+  if not y_axis_data.empty?
+    f.puts "set ylabel \"#{y_axis_data.inject([]) {|r,i| r << i.gsub(/'|"/, "") if (i and i.length > 0); r }.join(" / ")}\"" 
+  end
+  if not y2_axis_data.empty?
+    f.puts "set y2label \"#{y2_axis_data.inject([]) {|r,i| r << i.gsub(/'|"/, "") if (i and i.length > 0); r }.join(" / ")}\"" 
+    f.puts "set y2tics"
+    f.puts "set ytics nomirror"
+  end
+
   f.puts "plot  \\"
+
+  # y columns start after the x column
   lasty = y_axis_data.length - 1
   y_axis_data.each_index do |y| 
     s = y < lasty ? "," : ""
     f.puts "\"out\" using 1:#{y + 2} with lines title #{y_axis_data[y]} #{s}  \\"  
+  end
+
+  f.puts ",    \\" if y2_axis_data.length > 0
+
+  # y2 columns are after all the y columns
+  lasty2 = y2_axis_data.length - 1
+  y2_axis_data.each_index do |y| 
+    s = y < lasty2 ? "," : ""
+    f.puts "\"out\" using 1:#{y + 2 + lasty} axis x1y2 with lines title #{y2_axis_data[y]} #{s}  \\"  
   end
   f.puts
 end
@@ -447,6 +473,9 @@ File.open(output_data_file, "w") do |f|
       s = e[x_elt].to_s
     end
     y_axis.keys.each do |y|
+      s << "\t#{e[y].to_s}"
+    end
+    y2_axis.keys.each do |y|
       s << "\t#{e[y].to_s}"
     end
     f.puts s
