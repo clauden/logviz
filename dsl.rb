@@ -191,7 +191,6 @@ infile = datafile || nil
 #
 File.open(rulesfile) do |f|
   while ((line = f.gets))
-      debugger
     if line.match(comment_rx)
       next
     elsif ((m = line.match(column_rx)))
@@ -420,6 +419,8 @@ File.open(gnuplot_cmd_file, "w") do |f|
     f.puts "set format x \"#{xaxis_format}\""
     f.puts "set xrange [\"#{xmin.strftime("%Y-%m-%d+%H:%M:%S")}\":\"#{xmax.strftime("%Y-%m-%d+%H:%M:%S")}\"]"
   end
+debugger
+  f.puts "set ylabel \"#{y_axis_data.inject([]) {|r,i| r << i.gsub(/'|"/, "") if (i and i.length > 0); r }.join(" / ")}\""
   f.puts "plot  \\"
   lasty = y_axis_data.length - 1
   y_axis_data.each_index do |y| 
