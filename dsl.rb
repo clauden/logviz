@@ -56,18 +56,18 @@ regexp_define_rx = /\s*REGEXP\s+(\w+)\s*=\s*(.+)/i
 # labels
 #
 
-# "LABEL some-tag COLUMN some-column"
-column_rx = /\s*LABEL\s+(\w+)\s+COLUMN\s+(\d+)/i
+# "COLUMN some-tag some-column"
+column_rx = /\s*COLUMN\s+(\w+)\s+(\d+)/i
 
-# "LABEL some-tag EXPR some-expr"
-expr_rx = /\s*LABEL\s+(\w+)\s+EXPR\s+(.+)/i
+# "EXPR some-tag some-expr"
+expr_rx = /\s*EXPR\s+(\w+)\s+(.+)/i
 
-# "LABEL some-tag JSON json-expr"
-json_rx = /\s*LABEL\s+(\w+)\s+JSON\s+(.+)/i
+# "JSON some-tag json-expr"
+json_rx = /\s*JSON\s+(\w+)\s+(.+)/i
 
 # this label applies to the match-indexth capture or regexp-tag
-# "LABEL some-tag REGEXP regexp-tag match-index 
-regexp_rx = /\s*LABEL\s+(\w+)\s+REGEXP\s+(\w+)\s+(\d+)/i
+# "MATCH some-tag regexp-tag match-index 
+regexp_rx = /\s*MATCH\s+(\w+)\s+(\w+)\s+(\d+)/i
 
 
 #
