@@ -32,7 +32,9 @@ y2_axis = {}
 
 datafile = nil
 debug = nil
+run_gnuplot = nil
 gnuplot_cmd_file = nil
+output_data_file = nil
 
 
 #
@@ -114,11 +116,12 @@ def usage
   puts <<-EOF
 Generate gnuplot source for an arbitary row-oriented data set.
 Usage:
-    #{$0} --file <rules-file> --datafile <data-file> [--columns | --json] --gnuplot <cmd-file> --output <output-file> --DEBUG
+    #{$0} --file <rules-file> --datafile <data-file> [--columns | --json] --gnuplot <cmd-file> --output <output-file> --run --DEBUG
   
     In the absence of --datafile, STDIN is read.
     In the absence of --gnuplot, the command file is written to 'gnuplot.cmd' in the local directory.
     In the absence of --output, the output data file is written to 'out' in the local directory.
+    Gnuplot will be executed if --run is set.
 
     Column input may be processed either with a fixed delimiter expression or using regexps.
     JSON input is assumed to be an array containing one hash per row. 
@@ -144,8 +147,10 @@ opts = GetoptLong.new(
       [ '--file', '-f', GetoptLong::REQUIRED_ARGUMENT ],
       [ '--columns', '-c', GetoptLong::NO_ARGUMENT ],
       [ '--json', '-j', GetoptLong::NO_ARGUMENT ],
+      [ '--run', '-r', GetoptLong::NO_ARGUMENT ],
       [ '--datafile', '-d', GetoptLong::REQUIRED_ARGUMENT ],
       [ '--gnuplot', '-g', GetoptLong::REQUIRED_ARGUMENT ],
+      [ '--output', '-o', GetoptLong::REQUIRED_ARGUMENT ],
       [ '--DEBUG', '-D', GetoptLong::NO_ARGUMENT ]
     )
 
@@ -158,12 +163,16 @@ opts.each do |opt, arg|
       rulesfile = arg
     when '--gnuplot'
       gnuplot_cmd_file = arg
+    when '--output'
+      output_data_file = arg
     when '--datafile'
       datafile = arg
     when '--json'
       method = :json
     when '--columns'
       method = :columns
+    when '--run'
+      run_gnuplot = true
     when '--DEBUG'
       debug = true
   end
@@ -417,6 +426,7 @@ y_axis_data = y_axis.keys.inject([]) { |r,i| r << y_axis[i]; r } if not y_axis.e
 y2_axis_data = y2_axis.keys.inject([]) { |r,i| r << y2_axis[i]; r } if not y2_axis.empty?
 
 gnuplot_cmd_file = "./gnuplot.cmds" if not gnuplot_cmd_file
+output_data_file = "./out" if not output_data_file
 
 File.open(gnuplot_cmd_file, "w") do |f|
   f.puts "set title #{title}" if title
@@ -442,7 +452,7 @@ debugger
   lasty = y_axis_data.length - 1
   y_axis_data.each_index do |y| 
     s = y < lasty ? "," : ""
-    f.puts "\"out\" using 1:#{y + 2} with lines title #{y_axis_data[y]} #{s}  \\"  
+    f.puts "\"#{output_data_file}\" using 1:#{y + 2} with lines title #{y_axis_data[y]} #{s}  \\"  
   end
 
   f.puts ",    \\" if y2_axis_data.length > 0
@@ -451,7 +461,7 @@ debugger
   lasty2 = y2_axis_data.length - 1
   y2_axis_data.each_index do |y| 
     s = y < lasty2 ? "," : ""
-    f.puts "\"out\" using 1:#{y + 2 + lasty} axis x1y2 with lines title #{y2_axis_data[y]} #{s}  \\"  
+    f.puts "\"#{output_data_file}\" using 1:#{y + 2 + lasty} axis x1y2 with lines title #{y2_axis_data[y]} #{s}  \\"  
   end
   f.puts
 end
@@ -464,7 +474,6 @@ output.sort! do |e1, e2|
 end
 
 debugger
-output_data_file = "./out"
 File.open(output_data_file, "w") do |f|
   output.each do |e|
     if timeseries
@@ -482,4 +491,4 @@ File.open(output_data_file, "w") do |f|
   end 
 end
 
-
+system  "gnuplot #{gnuplot_cmd_file}" if run_gnuplot
