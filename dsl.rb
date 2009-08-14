@@ -437,10 +437,10 @@ File.open(gnuplot_cmd_file, "w") do |f|
     f.puts "set xrange [\"#{xmin.strftime("%Y-%m-%d+%H:%M:%S")}\":\"#{xmax.strftime("%Y-%m-%d+%H:%M:%S")}\"]"
   end
 debugger
-  if not y_axis_data.empty?
+  if not y_axis.empty?
     f.puts "set ylabel \"#{y_axis_data.inject([]) {|r,i| r << i.gsub(/'|"/, "") if (i and i.length > 0); r }.join(" / ")}\"" 
   end
-  if not y2_axis_data.empty?
+  if not y2_axis.empty?
     f.puts "set y2label \"#{y2_axis_data.inject([]) {|r,i| r << i.gsub(/'|"/, "") if (i and i.length > 0); r }.join(" / ")}\"" 
     f.puts "set y2tics"
     f.puts "set ytics nomirror"
@@ -449,21 +449,27 @@ debugger
   f.puts "plot  \\"
 
   # y columns start after the x column
-  lasty = y_axis_data.length - 1
-  y_axis_data.each_index do |y| 
-    s = y < lasty ? "," : ""
-    f.puts "\"#{output_data_file}\" using 1:#{y + 2} with lines title #{y_axis_data[y]} #{s}  \\"  
-  end
+  if not y_axis.empty?
+    lasty = y_axis_data.length - 1
+    y_axis_data.each_index do |y| 
+      s = y < lasty ? "," : ""
+      f.puts "\"#{output_data_file}\" using 1:#{y + 2} with lines title #{y_axis_data[y]} #{s}  \\"  
+    end
 
-  f.puts ",    \\" if y2_axis_data.length > 0
+    f.puts ",    \\" if y2_axis.length > 0
+  end
 
   # y2 columns are after all the y columns
-  lasty2 = y2_axis_data.length - 1
-  y2_axis_data.each_index do |y| 
-    s = y < lasty2 ? "," : ""
-    f.puts "\"#{output_data_file}\" using 1:#{y + 2 + lasty} axis x1y2 with lines title #{y2_axis_data[y]} #{s}  \\"  
+  if not y2_axis.empty?
+    lasty ||= 0
+debugger
+    lasty2 = y2_axis_data.length - 1 
+    y2_axis_data.each_index do |y| 
+      s = y < lasty2 ? "," : ""
+      f.puts "\"#{output_data_file}\" using 1:#{y + 2 + lasty} axis x1y2 with lines title #{y2_axis_data[y]} #{s}  \\"  
+    end
+    f.puts
   end
-  f.puts
 end
 
 # write out gnuplot source data file (date in appropriate format!)
