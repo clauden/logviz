@@ -40,6 +40,7 @@ Usage:
       COLUMN <tag> <col-num>    # Assign tag to a column in the input data
       EXPR <tag> <expr>         # Assign tag to an arbitrary expression (can contain defined tags)
       JSON <tag> <json-expr>    # Assign tag to a JSON expression against current "row"
+      MATCH <tag> <regex-tag> <capture-group>     # Assign tag to the nth capture group of the specified regex (defined by REGEXP)
 
       XAXIS <tag> <label>             # Set x-axis data set to tag (exactly one required)
       YAXIS <tag> <label>             # Set left y-axis data set to tag (one or more)
