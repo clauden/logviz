@@ -33,6 +33,7 @@ y2_axis = {}
 
 datafile = nil
 debug = nil
+quiet = nil
 run_gnuplot = nil
 gnuplot_cmd_file = nil
 output_data_file = nil
@@ -98,6 +99,7 @@ def looks_like_date(x)
   begin
     rv = DateTime.parse(x)
   rescue
+    puts "not a date: #{x}"
     nil
   end
   rv
@@ -117,7 +119,7 @@ def usage
   puts <<-EOF
 Generate gnuplot source for an arbitary row-oriented data set.
 Usage:
-    #{$0} --file <rules-file> --datafile <data-file> [--columns | --json] --gnuplot <cmd-file> --output <output-file> --run --DEBUG
+    #{$0} --file <rules-file> --datafile <data-file> [--columns | --json] --gnuplot <cmd-file> --output <output-file> --run --quiet --DEBUG
   
     In the absence of --datafile, STDIN is read.
     In the absence of --gnuplot, the command file is written to 'gnuplot.cmd' in the local directory.
@@ -152,6 +154,7 @@ opts = GetoptLong.new(
       [ '--datafile', '-d', GetoptLong::REQUIRED_ARGUMENT ],
       [ '--gnuplot', '-g', GetoptLong::REQUIRED_ARGUMENT ],
       [ '--output', '-o', GetoptLong::REQUIRED_ARGUMENT ],
+      [ '--quiet', '-q', GetoptLong::NO_ARGUMENT ],
       [ '--DEBUG', '-D', GetoptLong::NO_ARGUMENT ]
     )
 
@@ -174,6 +177,8 @@ opts.each do |opt, arg|
       method = :columns
     when '--run'
       run_gnuplot = true
+    when '--quiet'
+      quiet= true
     when '--DEBUG'
       debug = true
   end
@@ -239,6 +244,8 @@ File.open(rulesfile) do |f|
     elsif ((m = line.match(title_rx))) 
       printf("TITLE %s\n", m.captures[0])
       title = ensure_quoted_string(m.captures[0])
+    else
+      printf("ERROR: %s \n", line)
     end
   end
 end
@@ -299,9 +306,8 @@ if method == :columns
 
   toplevel_object = infile ? File.open(infile) { |f| f.readlines } : STDIN.readlines
   toplevel_object.each do |line| 
-
     # for simple cases, assign tags to numeric columns
-    cols = line.split(column_delimiter)
+    cols = line.strip.split(column_delimiter)
     labels.keys.each do |l| 
       i = labels[l]           # the column number
       c = cols[i]             # value at that column
@@ -338,14 +344,14 @@ if method == :columns
     end
   
     # done
-    puts result.merge(values).inspect
+    puts result.merge(values).inspect unless quiet
     output << result.merge(values)
   end
 
 elsif method == :json
 
     toplevel_object = infile ? File.open(infile) { |f| JSON.parse(f.readlines.join) } : JSON.parse(STDIN.readlines.join) 
-    puts toplevel_object.inspect
+    puts toplevel_object.inspect unless quiet
 
     # assume toplevel object is an array of entries
     if toplevel_object.class != Array
@@ -360,7 +366,7 @@ elsif method == :json
       # assign tags to elements of the entry
       json.each do |label, expr|
         x = eval(expr)
-        puts "json #{label} -> #{x}"
+        puts "json #{label} -> #{x}" unless quiet 
         if looks_like_date(x) 
           values[label] = DateTime.parse(x)
         else
@@ -379,7 +385,7 @@ elsif method == :json
      end
 
     # done
-    puts result.merge(values).inspect
+    puts result.merge(values).inspect unless quiet
     output << result.merge(values)
   end
 
@@ -416,7 +422,7 @@ if timeseries
     # < 3 months, use days
     xaxis_format = "%m/%d"
   else
-    xaxis_format = "%m/%d/%Y"
+    xaxis_format = "%m/%d/%y"
   end
 end
 
