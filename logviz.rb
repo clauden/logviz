@@ -1,4 +1,4 @@
-
+#
 # given a set of columns, assign tag to each
 #
 require 'rubygems'; require 'ruby-debug'
@@ -37,6 +37,7 @@ quiet = nil
 run_gnuplot = nil
 gnuplot_cmd_file = nil
 output_data_file = nil
+imgfile = nil
 
 
 #
@@ -86,13 +87,17 @@ regexp_rx = /\s*MATCH\s+(\w+)\s+(\w+)\s+(\d+)/i
 #
 
 # "XAXIS some-tag label 
-x_rx = /\s*xaxis\s+(\w+)\s+(.*)/
+x_rx = /\s*xaxis\s+(\w+)\s+(.*)/i
 
 # "YAXIS some-tag label
-y_rx = /\s*yaxis\s+(\w+)\s+(.*)/
+y_rx = /\s*yaxis\s+(\w+)\s+(.*)/i
 
 # "Y2AXIS some-tag label
-y2_rx = /\s*y2axis\s+(\w+)\s+(.*)/
+y2_rx = /\s*y2axis\s+(\w+)\s+(.*)/i
+
+# "FILE image-file-name"
+imgfile_rx = /\s*file\s+(.+)/i
+
 
 def looks_like_date(x)
   rv = nil
@@ -119,12 +124,13 @@ def usage
   puts <<-EOF
 Generate gnuplot source for an arbitary row-oriented data set.
 Usage:
-    #{$0} --file <rules-file> --datafile <data-file> [--columns | --json] --gnuplot <cmd-file> --output <output-file> --run --quiet --DEBUG
+    #{$0} --file <rules-file> --datafile <data-file> [--columns | --json] --gnuplot <cmd-file> --output <output-file> --imagefile <image-file> --run --quiet --DEBUG
   
     In the absence of --datafile, STDIN is read.
     In the absence of --gnuplot, the command file is written to 'gnuplot.cmd' in the local directory.
     In the absence of --output, the output data file is written to 'out' in the local directory.
     Gnuplot will be executed if --run is set.
+    Gnuplot will output to tty unless --imagefile is set.
 
     Column input may be processed either with a fixed delimiter expression or using regexps.
     JSON input is assumed to be an array containing one hash per row. 
@@ -154,6 +160,7 @@ opts = GetoptLong.new(
       [ '--datafile', '-d', GetoptLong::REQUIRED_ARGUMENT ],
       [ '--gnuplot', '-g', GetoptLong::REQUIRED_ARGUMENT ],
       [ '--output', '-o', GetoptLong::REQUIRED_ARGUMENT ],
+      [ '--imagefile', '-i', GetoptLong::REQUIRED_ARGUMENT ],
       [ '--quiet', '-q', GetoptLong::NO_ARGUMENT ],
       [ '--DEBUG', '-D', GetoptLong::NO_ARGUMENT ]
     )
@@ -179,6 +186,8 @@ opts.each do |opt, arg|
       run_gnuplot = true
     when '--quiet'
       quiet= true
+    when '--imagefile'
+      imgfile = arg
     when '--DEBUG'
       debug = true
   end
@@ -244,6 +253,9 @@ File.open(rulesfile) do |f|
     elsif ((m = line.match(title_rx))) 
       printf("TITLE %s\n", m.captures[0])
       title = ensure_quoted_string(m.captures[0])
+    elsif ((m = line.match(imgfile_rx))) 
+      printf("FILE %s\n", m.captures[0])
+      imgfile = m.captures[0]
     else
       printf("ERROR: %s \n", line)
     end
@@ -436,6 +448,11 @@ gnuplot_cmd_file = "./gnuplot.cmds" if not gnuplot_cmd_file
 output_data_file = "./out" if not output_data_file
 
 File.open(gnuplot_cmd_file, "w") do |f|
+  if imgfile
+    f.puts "set terminal png size 1024,768"
+    f.puts "set output '#{imgfile}'"
+    f.puts "set size ratio 0.5"
+  end
   f.puts "set title #{title}" if title
   if timeseries
     f.puts "set xdata time"

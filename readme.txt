@@ -18,14 +18,16 @@ The specification dsl supports definition of:
     - time series 
     - variable
   . y axes (multiple, left/right)
+  . output image file
     
 Usage:
-    logviz.rb --file <rules-file> --datafile <data-file> [--columns | --json] --gnuplot <cmd-file> --output <output-file> --run --DEBUG
+    logviz.rb --file <rules-file> --datafile <data-file> [--columns | --json] --gnuplot <cmd-file> --output <output-file> --imagefile <image-file> --run --DEBUG --quiet
   
     In the absence of --datafile, STDIN is read.
     In the absence of --gnuplot, the command file is written to 'gnuplot.cmd' in the local directory.
     In the absence of --output, the output data file is written to 'out' in the local directory.
     Gnuplot will be executed if --run is set.
+    Gnuplot will output to tty unless --imagefile is set.
 
     Column input may be processed either with a fixed delimiter expression or using regexps.
     JSON input is assumed to be an array containing one hash per row. 
