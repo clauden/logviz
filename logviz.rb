@@ -1,4 +1,4 @@
-#
+
 # given a set of columns, assign tag to each
 #
 require 'rubygems'; require 'ruby-debug'
@@ -318,6 +318,9 @@ if method == :columns
 
   toplevel_object = infile ? File.open(infile) { |f| f.readlines } : STDIN.readlines
   toplevel_object.each do |line| 
+    # ignore comment records
+    next if line.match(comment_rx) or line.strip.empty?
+
     # for simple cases, assign tags to numeric columns
     cols = line.strip.split(column_delimiter)
     labels.keys.each do |l| 
@@ -461,6 +464,9 @@ File.open(gnuplot_cmd_file, "w") do |f|
     f.puts "set xrange [\"#{xmin.strftime("%Y-%m-%d+%H:%M:%S")}\":\"#{xmax.strftime("%Y-%m-%d+%H:%M:%S")}\"]"
   end
 debugger
+  if x_axis[x_elt]
+    f.puts "set xlabel #{x_axis[x_elt]}"
+  end
   if not y_axis.empty?
     f.puts "set ylabel \"#{y_axis_data.inject([]) {|r,i| r << i.gsub(/'|"/, "") if (i and i.length > 0); r }.join(" / ")}\"" 
   end
