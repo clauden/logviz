@@ -435,8 +435,11 @@ else
   if timeseries
     # pick a format based on min-max interval
     d = (xmax - xmin).to_i
-    if d < 3
-      # < 3 days, use hours
+    if d < 1
+      # < 1 day, use just hours
+      xaxis_format = "%H:%M"
+    elsif d < 3
+      # < 3 days, use days + hours
       xaxis_format = "%m/%d %H:%M"
     elsif d < 90
       # < 3 months, use days
