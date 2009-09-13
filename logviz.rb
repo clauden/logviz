@@ -1,4 +1,4 @@
-
+#!/usr/bin/ruby
 # given a set of columns, assign tag to each
 #
 require 'rubygems'; require 'ruby-debug'
@@ -270,9 +270,7 @@ debugger
 
 # need an x axis
 if x_axis.empty?
-  puts "Need an x axis"
-  usage
-  exit 3
+  puts "Using default X axis"
 end
 
 # need at least one y axis
@@ -408,45 +406,69 @@ end
   
 # now output contains a hash for each record to be plotted
   
-
-#
-# calculate x-axis params
-#
-
 debugger
-# which element is x-axis (time) ?
-x_elt = x_axis.keys[0]
-puts "using x elt #{x_elt}"
 
-# get min/max time value
-xvals = output.collect { |e| e[x_elt] }
-xvals.sort!
-# xmin = DateTime.parse(xvals.first)
-# xmax = DateTime.parse(xvals.last)
-xmin = xvals.first
-xmax = xvals.last
-puts "x: #{xmin.to_s} - #{xmax.to_s}"
+######
+# calculate x-axis params
+######
 
-if timeseries
-  # pick a format based on min-max interval
-  d = (xmax - xmin).to_i
-  if d < 3
-    # < 3 days, use hours
-    xaxis_format = "%m/%d %H:%M"
-  elsif d < 90
-    # < 3 months, use days
-    xaxis_format = "%m/%d"
-  else
-    xaxis_format = "%m/%d/%y"
+if x_axis.empty?
+  # unspecified x_axis means just use record order
+  xvals = Array.new(toplevel_object.length) { |i| i }
+  xmin = xvals.first
+  xmax = xvals.last
+else
+  # use specified x axis data
+# 
+  x_elt = x_axis.keys[0]
+  puts "using x elt #{x_elt}"
+
+  # get min/max time value
+  xvals = output.collect { |e| e[x_elt] }
+  xvals.sort!
+  # xmin = DateTime.parse(xvals.first)
+  # xmax = DateTime.parse(xvals.last)
+  xmin = xvals.first
+  xmax = xvals.last
+  puts "x: #{xmin.to_s} - #{xmax.to_s}"
+
+  if timeseries
+    # pick a format based on min-max interval
+    d = (xmax - xmin).to_i
+    if d < 3
+      # < 3 days, use hours
+      xaxis_format = "%m/%d %H:%M"
+    elsif d < 90
+      # < 3 months, use days
+      xaxis_format = "%m/%d"
+    else
+      xaxis_format = "%m/%d/%y"
+    end
   end
 end
 
+######
 # compute min/max range for each y axis (add 5 % buffer?)
+######
 
 # set up column index, title for each y axis
 y_axis_data = y_axis.keys.inject([]) { |r,i| r << y_axis[i]; r } if not y_axis.empty?
 y2_axis_data = y2_axis.keys.inject([]) { |r,i| r << y2_axis[i]; r } if not y2_axis.empty?
 
+ymin = 0
+ymax = 0
+output.each do |e|
+    y_axis.keys.each do |y|
+      ymin = e[y] if e[y] < ymin
+      ymax = e[y] if e[y] > ymax
+    end
+    y2_axis.keys.each do |y|
+      ymin = e[y] if e[y] < ymin
+      ymax = e[y] if e[y] > ymax
+    end
+end
+
+debugger
 gnuplot_cmd_file = "./gnuplot.cmds" if not gnuplot_cmd_file
 output_data_file = "./out" if not output_data_file
 
@@ -476,6 +498,8 @@ debugger
     f.puts "set ytics nomirror"
   end
 
+  f.puts "set yrange [#{ymin != 0 ? ymin * 0.9 : 0} : #{ymax * 1.1}]"
+
   f.puts "plot  \\"
 
   # y columns start after the x column
@@ -504,18 +528,23 @@ end
 
 # write out gnuplot source data file (date in appropriate format!)
 
-# x_elt is assumed to be date (but this sort should work regardless?)
-output.sort! do |e1, e2|
-  e1[x_elt] <=> e2[x_elt]
+if x_elt
+  # x_elt is assumed to be date (but this sort should work regardless?)
+  output.sort! do |e1, e2|
+    e1[x_elt] <=> e2[x_elt]
+  end
 end
 
 debugger
+n = 0
 File.open(output_data_file, "w") do |f|
   output.each do |e|
     if timeseries
       s = e[x_elt].strftime("%Y-%m-%d+%H:%M:%S")      # standard time format
-    else
+    elsif x_elt
       s = e[x_elt].to_s
+    else
+      s = "#{n}"
     end
     y_axis.keys.each do |y|
       s << "\t#{e[y].to_s}"
@@ -524,6 +553,7 @@ File.open(output_data_file, "w") do |f|
       s << "\t#{e[y].to_s}"
     end
     f.puts s
+    n += 1
   end 
 end
 
