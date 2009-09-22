@@ -325,7 +325,10 @@ if method == :columns
       i = labels[l]           # the column number
       c = cols[i]             # value at that column
       next if not c
+debugger
       if c.to_f.to_s == c     # keep numeric types correct
+        values[l] = c.to_f
+      elsif c.to_f.to_s.to_f == c.to_f    # um... 
         values[l] = c.to_f
       elsif c.to_i.to_s == c
         values[l] = c.to_i
@@ -425,6 +428,7 @@ else
 
   # get min/max time value
   xvals = output.collect { |e| e[x_elt] }
+debugger
   xvals.sort!
   # xmin = DateTime.parse(xvals.first)
   # xmax = DateTime.parse(xvals.last)
@@ -519,7 +523,6 @@ debugger
   # y2 columns are after all the y columns
   if not y2_axis.empty?
     lasty ||= 0
-debugger
     lasty2 = y2_axis_data.length - 1 
     y2_axis_data.each_index do |y| 
       s = y < lasty2 ? "," : ""
