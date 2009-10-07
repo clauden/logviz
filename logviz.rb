@@ -325,17 +325,23 @@ if method == :columns
       i = labels[l]           # the column number
       c = cols[i]             # value at that column
       next if not c
-debugger
-      if c.to_f.to_s == c     # keep numeric types correct
-        values[l] = c.to_f
-      elsif c.to_f.to_s.to_f == c.to_f    # um... 
-        values[l] = c.to_f
-      elsif c.to_i.to_s == c
-        values[l] = c.to_i
-      elsif looks_like_date(c) 
-        values[l] = DateTime.parse(c)
-      else
-        values[l] = c 
+
+      begin
+        values[l] = Integer(c)
+        puts "#{c} : int"
+      rescue ArgumentError
+        begin
+          values[l] = Float(c)
+          puts "#{c} : float"
+        rescue ArgumentError
+          begin
+            values[l] = DateTime::parse(c)
+            puts "#{c} : date"
+          rescue ArgumentError
+            values[l] = c 
+            puts "#{c} : other"
+          end
+        end
       end
     end
 
