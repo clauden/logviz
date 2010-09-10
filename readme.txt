@@ -1,4 +1,4 @@
-This project generates quick gnuplots of row-oriented data with a simple dsl.
+This project generates quick gnuplots of row-oriented data.
 
 It supports the following kinds of input:
 . JSON (assumes an array of entries at the top level)
